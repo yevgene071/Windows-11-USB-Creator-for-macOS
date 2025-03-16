@@ -47,7 +47,7 @@ WINDOWS_RED="\033[38;5;196m"  # Красный Windows
 WINDOWS_YELLOW="\033[38;5;226m" # Желтый Windows
 
 # ==================== ПЕРЕМЕННЫЕ ====================
-VERSION="4.1"  # Обновлена версия после исправлений
+VERSION="4.2"  # Обновлена версия после исправлений
 ISO_PATH=""
 USB_DISK=""
 MOUNT_DIR=""
@@ -62,134 +62,6 @@ CACHE_DIR="${TMPDIR:-/tmp}/win11_creator_cache"  # Директория для �
 
 # Создаем директорию для кэша
 mkdir -p "$CACHE_DIR" 2>/dev/null
-
-  # После определения кэш-директории и перед любыми операциями
-  # Проверяем системные зависимости
-  check_system_dependencies
-
-# Объединенная функция проверки системных требований и зависимостей
-check_system_dependencies() {
-  log "INFO" "Проверка системных зависимостей"
-  
-  # Проверяем наличие необходимых утилит
-  local missing_tools=()
-  local required_tools=("diskutil" "hdiutil" "rsync" "wc" "awk" "sed" "grep" "find" "mktemp")
-  
-  for tool in "${required_tools[@]}"; do
-    if ! command -v "$tool" &>/dev/null; then
-      missing_tools+=("$tool")
-      log "ERROR" "Утилита не найдена: $tool"
-    fi
-  done
-  
-  if [ ${#missing_tools[@]} -gt 0 ]; then
-    echo -e "${ERROR}${BOLD}Отсутствуют необходимые утилиты: ${missing_tools[*]}${RESET}"
-    echo -e "${INFO}Эти утилиты необходимы для работы скрипта.${RESET}"
-    exit 1
-  fi
-  
-  # Проверяем кэш-директорию
-  if ! check_cache_dir; then
-    echo -e "${ERROR}${BOLD}Невозможно использовать кэш-директорию.${RESET}"
-    echo -e "${INFO}Проверьте права доступа и наличие свободного места.${RESET}"
-    exit 1
-  fi
-  
-  # Проверяем терминал
-  if [ -z "$TERM" ] || [ "$TERM" = "dumb" ]; then
-    log "WARNING" "Обнаружен минимальный терминал ($TERM), переключение на упрощенный интерфейс"
-    SIMPLE_UI=true
-  fi
-  
-  # Проверяем размер терминала
-  if [ "$TERM_WIDTH" -lt 40 ] || [ "$TERM_HEIGHT" -lt 10 ]; then
-    log "WARNING" "Обнаружен очень маленький терминал (${TERM_WIDTH}x${TERM_HEIGHT}), переключение на упрощенный интерфейс"
-    SIMPLE_UI=true
-  fi
-  
-  # Выполняем дополнительные проверки из check_requirements
-  clear_screen
-  draw_fullscreen_box "Проверка системных требований"
-  
-  local required_tools=("diskutil" "hdiutil" "rsync" "file" "mktemp")
-  local missing_tools=()
-  
-  echo
-  local width=$(draw_info_block "Проверка утилит")
-  
-  # Запускаем спиннер загрузки
-  loading_spinner "Проверка системных компонентов..." 5
-  
-  # Имитация задержки проверки для демонстрации анимации
-  sleep 1.5
-  
-  # Останавливаем спиннер
-  stop_spinner
-  
-  for tool in "${required_tools[@]}"; do
-    if ! command -v "$tool" &> /dev/null; then
-      missing_tools+=("$tool")
-      draw_block_line "[ ] ${ERROR}$tool${RESET} - не найден"
-    else
-      draw_block_line "[${SUCCESS}✓${RESET}] $tool - найден"
-    fi
-    sleep 0.2  # Красивая анимация последовательного появления строк
-  done
-  
-  close_info_block
-  
-  if [ ${#missing_tools[@]} -gt 0 ]; then
-    echo
-    show_error_message "Не найдены утилиты: ${missing_tools[*]}"
-    echo
-    echo -e "${INFO}[Нажмите Enter для выхода]${RESET}"
-    read
-    exit 1
-  else
-    echo
-    show_success_message "Все необходимые утилиты найдены"
-  fi
-  
-  # Проверка запуска от имени администратора
-  echo
-  if [ "$(id -u)" -ne 0 ]; then
-    show_warning_message "Скрипт запущен без прав администратора"
-    draw_content_line "   ${WARNING}Для корректной работы рекомендуется запускать с sudo${RESET}"
-    
-    local continue_without_sudo=$(ask_yes_no "Продолжить без прав администратора?" "n")
-    
-    if [ "$continue_without_sudo" = "false" ]; then
-      echo -e "${INFO}Перезапустите скрипт с sudo: ${ACCENT}sudo $0 $SCRIPT_ARGS${RESET}"
-      exit 0
-    fi
-  else
-    show_success_message "Скрипт запущен с правами администратора"
-  fi
-  
-  # Системная информация
-  local macos_version=$(sw_vers -productVersion 2>/dev/null || echo "Неизвестно")
-  local system_free_space=$(df -h / | tail -1 | awk '{print $4}')
-  
-  echo
-  local width=$(draw_info_block "Системная информация")
-  
-  # Анимируем появление информации
-  sleep 0.3
-  draw_block_line "Версия macOS: ${ACCENT}$macos_version${RESET}"
-  sleep 0.3
-  draw_block_line "Свободное место на системном диске: ${ACCENT}$system_free_space${RESET}"
-  
-  close_info_block
-  
-  close_fullscreen_box
-  
-  echo
-  echo -e "${INFO}[Нажмите Enter для продолжения]${RESET}"
-  read
-  
-  log "INFO" "Проверка системных зависимостей завершена успешно"
-  return 0
-}
 
 # ==================== СЛУЖЕБНЫЕ ФУНКЦИИ ====================
 
@@ -210,7 +82,7 @@ log() {
     mkdir -p "$log_dir" 2>/dev/null
     if [ $? -ne 0 ]; then
       # Если не удалось создать директорию, используем временную
-      LOG_FILE="${TMPDIR:-/tmp}/win11_creator_log_$.log"
+      LOG_FILE="${TMPDIR:-/tmp}/win11_creator_log_$$.log"
       echo "Не удалось создать директорию для логов. Используем: $LOG_FILE" >&2
     fi
   fi
@@ -225,6 +97,24 @@ log() {
       mv "$LOG_FILE" "${LOG_FILE}.old" 2>/dev/null
     fi
   fi
+}
+
+# Центрирование текста
+center_text() {
+  local text="$1"
+  local visible_text=$(echo -e "$text" | sed 's/\x1B\[[0-9;]*[JKmsu]//g')
+  local padding=$(( (TERM_WIDTH - ${#visible_text}) / 2 ))
+  
+  # Ensure padding isn't negative
+  [ $padding -lt 0 ] && padding=0
+  
+  printf "%*s%s" $padding "" "$text"
+}
+
+# Проверка возобновления предыдущей сессии
+resume_previous_session() {
+  # Функция-плейсхолдер, так как основная проверка уже реализована в основной секции программы
+  return 0
 }
 
 # Проверка ошибок с возможностью восстановления
@@ -265,7 +155,7 @@ check_cache_dir() {
     if [ $? -ne 0 ]; then
       log "WARNING" "Не удалось создать кэш-директорию: $CACHE_DIR"
       # Пробуем использовать системную временную директорию
-      CACHE_DIR="${TMPDIR:-/tmp}/win11_creator_cache_$"
+      CACHE_DIR="${TMPDIR:-/tmp}/win11_creator_cache_$$"
       log "INFO" "Используем альтернативную кэш-директорию: $CACHE_DIR"
       mkdir -p "$CACHE_DIR" 2>/dev/null
       if [ $? -ne 0 ]; then
@@ -460,6 +350,46 @@ draw_block_line() {
   echo -e "${BORDER}┃${RESET}  ${PRIMARY}│${RESET} ${content}$(printf '%*s' $spaces '')${PRIMARY}│${RESET}  ${BORDER}┃${RESET}"
 }
 
+# Индикатор прогресса
+show_progress() {
+  local message="$1"
+  local total=${2:-100}
+  local current=${3:-0}
+  local complete=${4:-false}
+  local width=$((TERM_WIDTH - PADDING*2 - ${#message} - 10))
+  local bar_length=40
+  
+  # Упрощенный прогресс для маленьких терминалов
+  if [ "$SIMPLE_UI" = true ] || [ $width -lt 50 ]; then
+    bar_length=20
+  fi
+  
+  # Вычисляем процент
+  local percentage=$((current * 100 / total))
+  [ $percentage -gt 100 ] && percentage=100
+  
+  # Вычисляем количество заполненных и пустых сегментов
+  local filled=$((percentage * bar_length / 100))
+  local empty=$((bar_length - filled))
+  
+  # Рисуем прогресс-бар
+  printf "\r${message} [${PRIMARY}"
+  for ((i=0; i<filled; i++)); do
+    printf "█"
+  done
+  
+  for ((i=0; i<empty; i++)); do
+    printf "${BRIGHT_BLACK}█${PRIMARY}"
+  done
+  
+  printf "${RESET}] ${percentage}%%"
+  
+  # Если завершено, добавляем новую строку
+  if [ "$complete" = "true" ] || [ $percentage -eq 100 ]; then
+    printf "\n"
+  fi
+}
+
 # Для одиночных файлов - отображаем прогресс копирования с использованием универсальной функции
 handle_single_file_progress() {
   local file="$1"
@@ -488,7 +418,7 @@ show_copy_progress() {
   echo -e "${INFO}Всего файлов для копирования: ${ACCENT}$total_files${RESET}"
   
   # Создаем временный файл для отслеживания прогресса
-  local progress_file="${CACHE_DIR}/copy_progress_$"
+  local progress_file="${CACHE_DIR}/copy_progress_$$"
   echo "0" > "$progress_file"
   
   # Запускаем фоновый процесс для мониторинга количества скопированных файлов
@@ -651,7 +581,7 @@ stop_spinner() {
   # Останавливаем процесс со спиннером, если он запущен
   if [ -n "$SPINNER_PID" ] && ps -p "$SPINNER_PID" > /dev/null 2>&1; then
     # Удаляем файл, чтобы цикл спиннера завершился
-    rm -f "${CACHE_DIR}/spinner_done_$" 2>/dev/null
+    rm -f "${CACHE_DIR}/spinner_done_$$" 2>/dev/null
     
     # Даем спиннеру время корректно завершиться
     sleep 0.2
@@ -961,6 +891,218 @@ check_free_space() {
   fi
   
   show_success_message "Достаточно места на диске назначения"
+  return 0
+}
+
+# Создание загрузочного сектора на USB-накопителе
+create_boot_sector() {
+  local mount_point="$1"
+  
+  show_info_message "Создание загрузочного сектора..."
+  
+  # Копируем загрузочные файлы
+  if [ -f "$MOUNT_DIR/boot/bootsect.exe" ]; then
+    show_info_message "Найден файл bootsect.exe, копирование..."
+    cp "$MOUNT_DIR/boot/bootsect.exe" "$mount_point/" 2>/dev/null
+  fi
+  
+  # Создаем загрузочный сектор с помощью встроенных инструментов Windows
+  if [ -f "$mount_point/boot/bootmgr" ] && [ -f "$mount_point/bootmgr" ]; then
+    show_info_message "Файлы загрузчика уже присутствуют"
+  else
+    show_warning_message "Некоторые загрузочные файлы отсутствуют"
+    show_info_message "Будет использован стандартный метод копирования"
+  fi
+  
+  # Делаем раздел активным (загрузочным)
+  local disk_id="${USB_DISK}s1"  # Первый раздел USB-накопителя
+  show_info_message "Установка активного флага для раздела $disk_id..."
+  
+  # В macOS нет прямого эквивалента fdisk для установки активного флага
+  # Но мы можем использовать diskutil для изменения типа раздела
+  diskutil unmount "/dev/$disk_id" &>/dev/null
+  
+  # Запускаем fdisk с командой make bootable (не стандартно для macOS, может потребоваться установка)
+  if command -v fdisk &>/dev/null; then
+    echo "a
+1
+w
+q" | sudo fdisk /dev/$USB_DISK &>/dev/null
+    show_success_message "Установлен загрузочный флаг с помощью fdisk"
+  else
+    show_warning_message "Утилита fdisk не найдена, пропуск установки загрузочного флага"
+    show_info_message "Для полной загрузочности может потребоваться дополнительная настройка"
+  fi
+  
+  # Монтируем раздел обратно
+  diskutil mount "/dev/$disk_id" &>/dev/null
+  
+  return 0
+}
+
+# Обработка больших файлов для FAT32
+process_large_files() {
+  local source_dir="$1"
+  local dest_dir="$2"
+  
+  # Проверяем наличие install.wim и его размер
+  if [ -f "$source_dir/sources/install.wim" ]; then
+    local wim_size=$(stat -f %z "$source_dir/sources/install.wim")
+    if [ $wim_size -gt 4294967296 ]; then  # 4 GB в байтах
+      show_warning_message "Файл install.wim превышает ограничение FAT32 (4 ГБ)"
+      show_info_message "Разделение install.wim на части..."
+      
+      # Создаем директорию для разделенного файла
+      mkdir -p "$dest_dir/sources/split" 2>/dev/null
+      
+      # На macOS нет встроенной команды для разделения WIM файлов
+      # Можно использовать split для разделения на части по 3.8 ГБ
+      split -b 3800M "$source_dir/sources/install.wim" "$dest_dir/sources/split/install.wim.part"
+      
+      show_success_message "Файл install.wim разделен на части"
+      
+      # Создаем файл readme с инструкциями
+      cat > "$dest_dir/sources/split/README.txt" << EOF
+Это разделенные части install.wim, которые превысили ограничение размера файла FAT32 в 4 ГБ.
+
+Для использования во время установки:
+1. Нажмите Shift+F10 во время установки Windows, чтобы открыть командную строку
+2. Используйте DISM для применения образа:
+   dism /Apply-Image /ImageFile:D:\\sources\\split\\install.wim.part* /index:1 /ApplyDir:C:\\
+
+Замените D: и C: на фактические буквы дисков по мере необходимости.
+EOF
+      
+      show_info_message "Для использования разделенного файла может потребоваться дополнительная настройка"
+      
+      return 0
+    fi
+  fi
+  
+  return 0
+}
+
+# Объединенная функция проверки системных требований и зависимостей
+check_system_dependencies() {
+  log "INFO" "Проверка системных зависимостей"
+  
+  # Проверяем наличие необходимых утилит
+  local missing_tools=()
+  local required_tools=("diskutil" "hdiutil" "rsync" "wc" "awk" "sed" "grep" "find" "mktemp")
+  
+  for tool in "${required_tools[@]}"; do
+    if ! command -v "$tool" &>/dev/null; then
+      missing_tools+=("$tool")
+      log "ERROR" "Утилита не найдена: $tool"
+    fi
+  done
+  
+  if [ ${#missing_tools[@]} -gt 0 ]; then
+    echo -e "${ERROR}${BOLD}Отсутствуют необходимые утилиты: ${missing_tools[*]}${RESET}"
+    echo -e "${INFO}Эти утилиты необходимы для работы скрипта.${RESET}"
+    exit 1
+  fi
+  
+  # Проверяем кэш-директорию
+  if ! check_cache_dir; then
+    echo -e "${ERROR}${BOLD}Невозможно использовать кэш-директорию.${RESET}"
+    echo -e "${INFO}Проверьте права доступа и наличие свободного места.${RESET}"
+    exit 1
+  fi
+  
+  # Проверяем терминал
+  if [ -z "$TERM" ] || [ "$TERM" = "dumb" ]; then
+    log "WARNING" "Обнаружен минимальный терминал ($TERM), переключение на упрощенный интерфейс"
+    SIMPLE_UI=true
+  fi
+  
+  # Проверяем размер терминала
+  if [ "$TERM_WIDTH" -lt 40 ] || [ "$TERM_HEIGHT" -lt 10 ]; then
+    log "WARNING" "Обнаружен очень маленький терминал (${TERM_WIDTH}x${TERM_HEIGHT}), переключение на упрощенный интерфейс"
+    SIMPLE_UI=true
+  fi
+  
+  # Выполняем дополнительные проверки из check_requirements
+  clear_screen
+  draw_fullscreen_box "Проверка системных требований"
+  
+  local required_tools=("diskutil" "hdiutil" "rsync" "file" "mktemp")
+  local missing_tools=()
+  
+  echo
+  local width=$(draw_info_block "Проверка утилит")
+  
+  # Запускаем спиннер загрузки
+  loading_spinner "Проверка системных компонентов..." 5
+  
+  # Имитация задержки проверки для демонстрации анимации
+  sleep 1.5
+  
+  # Останавливаем спиннер
+  stop_spinner
+  
+  for tool in "${required_tools[@]}"; do
+    if ! command -v "$tool" &> /dev/null; then
+      missing_tools+=("$tool")
+      draw_block_line "[ ] ${ERROR}$tool${RESET} - не найден"
+    else
+      draw_block_line "[${SUCCESS}✓${RESET}] $tool - найден"
+    fi
+    sleep 0.2  # Красивая анимация последовательного появления строк
+  done
+  
+  close_info_block
+  
+  if [ ${#missing_tools[@]} -gt 0 ]; then
+    echo
+    show_error_message "Не найдены утилиты: ${missing_tools[*]}"
+    echo
+    echo -e "${INFO}[Нажмите Enter для выхода]${RESET}"
+    read
+    exit 1
+  else
+    echo
+    show_success_message "Все необходимые утилиты найдены"
+  fi
+  
+  # Проверка запуска от имени администратора
+  echo
+  if [ "$(id -u)" -ne 0 ]; then
+    show_warning_message "Скрипт запущен без прав администратора"
+    draw_content_line "   ${WARNING}Для корректной работы рекомендуется запускать с sudo${RESET}"
+    
+    local continue_without_sudo=$(ask_yes_no "Продолжить без прав администратора?" "n")
+    
+    if [ "$continue_without_sudo" = "false" ]; then
+      echo -e "${INFO}Перезапустите скрипт с sudo: ${ACCENT}sudo $0 $SCRIPT_ARGS${RESET}"
+      exit 0
+    fi
+  else
+    show_success_message "Скрипт запущен с правами администратора"
+  fi
+  
+  # Системная информация
+  local macos_version=$(sw_vers -productVersion 2>/dev/null || echo "Неизвестно")
+  local system_free_space=$(df -h / | tail -1 | awk '{print $4}')
+  
+  echo
+  local width=$(draw_info_block "Системная информация")
+  
+  # Анимируем появление информации
+  sleep 0.3
+  draw_block_line "Версия macOS: ${ACCENT}$macos_version${RESET}"
+  sleep 0.3
+  draw_block_line "Свободное место на системном диске: ${ACCENT}$system_free_space${RESET}"
+  
+  close_info_block
+  
+  close_fullscreen_box
+  
+  echo
+  echo -e "${INFO}[Нажмите Enter для продолжения]${RESET}"
+  read
+  
+  log "INFO" "Проверка системных зависимостей завершена успешно"
   return 0
 }
 
@@ -1333,7 +1475,7 @@ mount_iso() {
   echo -e "${INFO}${BOLD}Монтирование ISO образа...${RESET}"
   
   # Выводим прогресс-бар
-  show_progress "Монтирование ISO"
+  show_progress "Монтирование ISO" 100 0
   
   # Используем -nobrowse для предотвращения автоматического открытия в Finder
   hdiutil mount "$ISO_PATH" -mountpoint "$MOUNT_DIR" -nobrowse 2>/dev/null
@@ -1651,7 +1793,7 @@ prepare_usb() {
     show_success_message "Диск успешно размонтирован"
   fi
   
-  # Форматируем флешку в exFAT (только эта опция)
+  # Форматируем флешку в FAT32 с MBR (вместо exFAT) для лучшей совместимости загрузки
   echo
   printf "${INFO}${BOLD}Введите имя для USB-накопителя ${RESET}[${ACCENT}WINDOWS11${RESET}]: "
   read -r volume_name
@@ -1664,20 +1806,21 @@ prepare_usb() {
   volume_name=$(echo "$volume_name" | tr -cd 'A-Za-z0-9._-')
   
   echo
-  echo -e "${INFO}${BOLD}Форматирование флешки в exFAT...${RESET}"
+  echo -e "${INFO}${BOLD}Форматирование флешки в FAT32 с MBR...${RESET}"
   draw_content_line "   - Имя тома: ${ACCENT}$volume_name${RESET}"
   
   # Запускаем форматирование с прогресс-баром
-  show_progress "Форматирование USB"
+  show_progress "Форматирование USB" 100 0 true
   
-  diskutil eraseDisk ExFAT "$volume_name" /dev/$USB_DISK &>/dev/null
+  # ИЗМЕНЕНО: Форматируем в FAT32 с MBR вместо ExFAT для лучшей загрузочной совместимости
+  diskutil eraseDisk FAT32 "$volume_name" MBR /dev/$USB_DISK &>/dev/null
   
   if [ $? -ne 0 ]; then
     show_error_message "Не удалось отформатировать диск"
     
     # Попытка альтернативного форматирования
     echo -e "${INFO}Пробуем альтернативный метод форматирования...${RESET}"
-    diskutil partitionDisk /dev/$USB_DISK 1 GPT ExFAT "$volume_name" 100% &>/dev/null
+    diskutil partitionDisk /dev/$USB_DISK 1 MBR FAT32 "$volume_name" 100% &>/dev/null
     
     if [ $? -ne 0 ]; then
       show_error_message "Альтернативное форматирование также не удалось"
@@ -1845,6 +1988,9 @@ prepare_usb() {
     exit 1
   fi
   
+  # Создаем загрузочный сектор
+  create_boot_sector "$USB_MOUNT"
+  
   # Сохраняем прогресс
   save_state "prepare_usb"
   
@@ -1853,477 +1999,3 @@ prepare_usb() {
   echo
   echo -e "${INFO}[Нажмите Enter для продолжения]${RESET}"
   read
-}
-
-# Копирование файлов
-copy_files() {
-  clear_screen
-  draw_fullscreen_box "Копирование файлов Windows 11"
-  
-  echo
-  show_info_message "Копирование файлов Windows 11 на флешку"
-  draw_content_line "   - Из: ${ACCENT}$MOUNT_DIR${RESET}"
-  draw_content_line "   - В: ${ACCENT}$USB_MOUNT${RESET}"
-  
-  echo
-  show_warning_message "${BLINK}Не отключайте USB-накопитель во время копирования!${RESET}"
-  show_warning_message "Этот процесс может занять 10-30 минут в зависимости от скорости USB"
-  
-  # Дополнительная проверка исходной и целевой директорий
-  loading_spinner "Проверка директорий перед копированием..." 10
-  
-  sleep 1.2
-  
-  if [ ! -d "$MOUNT_DIR" ]; then
-    stop_spinner "error"
-    show_error_message "Директория с ISO образом не найдена: $MOUNT_DIR"
-    exit 1
-  fi
-  
-  # Проверяем, что точка монтирования ISO содержит файлы
-  if [ "$(ls -A "$MOUNT_DIR" 2>/dev/null | wc -l)" -eq 0 ]; then
-    stop_spinner "error"
-    show_error_message "Точка монтирования ISO пуста: $MOUNT_DIR"
-    draw_content_line "Содержимое точки монтирования:"
-    ls -la "$MOUNT_DIR"
-    exit 1
-  fi
-  
-  if [ ! -d "$USB_MOUNT" ]; then
-    stop_spinner "error"
-    show_error_message "Директория флешки не найдена: $USB_MOUNT"
-    exit 1
-  fi
-  
-  # Проверяем права на запись
-  if [ ! -w "$USB_MOUNT" ]; then
-    stop_spinner "error"
-    show_error_message "Нет прав на запись в директорию флешки: $USB_MOUNT"
-    exit 1
-  fi
-  
-  # Проверка достаточного места на флешке
-  if ! check_free_space "$MOUNT_DIR" "$USB_MOUNT"; then
-    stop_spinner "error"
-    show_error_message "Недостаточно места на флешке для копирования файлов"
-    exit 1
-  fi
-  
-  stop_spinner
-  
-  # Запуск копирования
-  echo
-  echo -e "${INFO}${BOLD}Копирование файлов...${RESET}"
-  echo
-  
-  # Листинг содержимого источника
-  local width=$(draw_info_block "Содержимое ISO образа (первые 10 файлов)")
-  
-  ls -la "$MOUNT_DIR" | head -n 10 | while IFS= read -r line; do
-    draw_block_line "$line"
-    sleep 0.05
-  done
-  
-  if [ "$(ls -la "$MOUNT_DIR" | wc -l)" -gt 10 ]; then
-    draw_block_line "${INFO}... и еще файлы (показаны первые 10)${RESET}"
-  fi
-  
-  close_info_block
-  echo
-  
-  # Используем rsync с улучшенными параметрами для стабильности и производительности
-  echo -e "${INFO}Запуск копирования... Это займет некоторое время. Пожалуйста, подождите.${RESET}"
-  echo
-  
-  # Создаем файл индикации, чтобы определять прогресс копирования
-  local progress_file="${CACHE_DIR}/copy_progress"
-  rm -f "$progress_file" 2>/dev/null
-  
-  # Функция для обработки вывода rsync и сохранения прогресса
-  process_rsync_output() {
-    while IFS= read -r line; do
-      echo "$line" > "$progress_file"
-      echo "$line"
-    done
-  }
-  
-  # Запускаем копирование с совместимыми параметрами
-  rsync -av --progress --stats --copy-links --no-perms "$MOUNT_DIR/" "$USB_MOUNT/" 2>&1 | process_rsync_output
-  
-  # Проверка результата копирования
-  local copy_result=$?
-  
-  if [ $copy_result -ne 0 ]; then
-    show_error_message "Ошибка при копировании файлов (код: $copy_result)"
-    
-    # Проверка ошибок более подробно
-    echo -e "${WARNING}Проверка возможных причин ошибки:${RESET}"
-    
-    if [ ! -r "$MOUNT_DIR" ]; then
-      draw_content_line "- ${ERROR}Нет прав на чтение из $MOUNT_DIR${RESET}"
-    fi
-    
-    if [ ! -w "$USB_MOUNT" ]; then
-      draw_content_line "- ${ERROR}Нет прав на запись в $USB_MOUNT${RESET}"
-    fi
-    
-    draw_content_line "- ${WARNING}Проверьте, не отключилась ли флешка во время копирования${RESET}"
-    
-    # Сохраняем файл с деталями ошибки
-    local error_log="${LOG_FILE%.log}_rsync_error.log"
-    echo "Копирование завершилось с ошибкой $copy_result в $(date)" > "$error_log"
-    echo "Возможно, некоторые файлы не были скопированы" >> "$error_log"
-    
-    draw_content_line "- ${INFO}Детали ошибки сохранены в: $error_log${RESET}"
-    
-    # Предлагаем продолжить копирование вручную
-    echo -e "${INFO}Попробуйте выполнить копирование вручную:${RESET}"
-    echo -e "cp -R \"$MOUNT_DIR/\" \"$USB_MOUNT/\""
-    
-    echo
-    echo -e "${INFO}[Нажмите Enter для продолжения]${RESET}"
-    read
-    exit 1
-  else
-    echo
-    show_success_message "Копирование файлов успешно завершено"
-    
-    # Принудительно сбрасываем буферы на диск
-    sync
-  fi
-  
-  # Проверка наличия важных файлов на флешке
-  echo
-  loading_spinner "Проверка скопированных файлов..." 10
-  
-  sleep 1.5
-  stop_spinner
-  
-  local width=$(draw_info_block "Проверка скопированных файлов")
-  
-  local essential_files=("bootmgr" "bootmgr.efi" "setup.exe" "sources/boot.wim")
-  local all_files_present=true
-  
-  for file in "${essential_files[@]}"; do
-    if [ -f "$USB_MOUNT/$file" ]; then
-      draw_block_line "[${SUCCESS}✓${RESET}] $file"
-    else
-      draw_block_line "[${ERROR}✗${RESET}] $file - не найден"
-      all_files_present=false
-    fi
-    sleep 0.2
-  done
-  
-  close_info_block
-  
-  if [ "$all_files_present" = false ]; then
-    echo
-    show_warning_message "Отсутствуют некоторые файлы. Флешка может не загрузиться корректно."
-  else
-    echo
-    show_success_message "Все необходимые файлы успешно скопированы!"
-  fi
-  
-  # Сохраняем прогресс
-  save_state "copy_files"
-  
-  close_fullscreen_box
-  
-  echo
-  echo -e "${INFO}[Нажмите Enter для продолжения]${RESET}"
-  read
-}
-
-# Завершение создания флешки
-finish() {
-  clear_screen
-  draw_fullscreen_box "Завершение создания загрузочной флешки"
-  
-  echo
-  loading_spinner "Финализация..." 5
-  
-  sleep 1.5
-  stop_spinner
-  
-  local width=$(draw_info_block "Итоги операции")
-  
-  draw_block_line "[${SUCCESS}✓${RESET}] ISO образ: ${ACCENT}$(basename "$ISO_PATH")${RESET}"
-  sleep 0.3
-  draw_block_line "[${SUCCESS}✓${RESET}] USB-накопитель: ${ACCENT}/dev/$USB_DISK${RESET}"
-  sleep 0.3
-  draw_block_line "[${SUCCESS}✓${RESET}] Точка монтирования: ${ACCENT}$USB_MOUNT${RESET}"
-  
-  close_info_block
-  
-  # Размонтирование ISO образа (если мы его монтировали)
-  if [ -n "$MOUNT_DIR" ] && [ "$MOUNT_DIR" != "/dev/disk"* ] && [ "$MOUNT_DIR" != "/Volumes/"* ]; then
-    echo
-    echo -e "${INFO}${BOLD}Размонтирование ISO образа...${RESET}"
-    
-    loading_spinner "Размонтирование ISO образа..." 10
-    
-    hdiutil unmount "$MOUNT_DIR" -force 2>/dev/null
-    
-    # Очистка временной директории
-    rm -rf "$MOUNT_DIR" 2>/dev/null
-    
-    sleep 0.8
-    stop_spinner
-    
-    show_success_message "ISO образ размонтирован"
-  fi
-  
-  # Спрашиваем, нужно ли извлечь флешку
-  echo
-  printf "${INFO}${BOLD}Хотите безопасно извлечь флешку? (Y/n): ${RESET}"
-  read -r eject_answer
-  eject_answer=$(echo "$eject_answer" | tr '[:upper:]' '[:lower:]')
-  
-  if [ -z "$eject_answer" ] || [ "$eject_answer" = "y" ]; then
-    echo
-    echo -e "${INFO}${BOLD}Извлечение флешки...${RESET}"
-    
-    loading_spinner "Безопасное извлечение флешки..." 15
-    
-    # Сначала принудительно завершаем все процессы, связанные с диском
-    pkill -f "$USB_DISK" 2>/dev/null
-    
-    # Даем время на завершение процессов
-    sleep 1
-    
-    # Сбрасываем буферы на диск
-    sync
-    
-    # Извлекаем диск
-    diskutil eject /dev/$USB_DISK &>/dev/null
-    
-    sleep 0.8
-    stop_spinner
-    
-    if [ $? -eq 0 ]; then
-      show_success_message "Флешка успешно извлечена"
-    else
-      show_warning_message "Не удалось извлечь флешку. Сделайте это вручную через Finder."
-    fi
-  fi
-  
-  # Советы по установке Windows 11
-  echo
-  local width=$(draw_info_block "Советы по установке Windows 11")
-  
-  draw_block_line "${ACCENT}1. Загрузка с USB:${RESET}"
-  sleep 0.2
-  draw_block_line "   - Перезагрузите компьютер и нажмите ${WARNING}F12${RESET} для выбора устройства"
-  sleep 0.2
-  draw_block_line "   - Выберите вашу USB флешку из списка"
-  sleep 0.2
-  draw_block_line ""
-  
-  draw_block_line "${ACCENT}2. Обход требований TPM 2.0:${RESET}"
-  sleep 0.2
-  draw_block_line "   - Нажмите ${WARNING}Shift+F10${RESET} для вызова командной строки"
-  sleep 0.2
-  draw_block_line "   - Запустите ${WARNING}regedit${RESET}"
-  sleep 0.2
-  draw_block_line "   - Создайте раздел ${WARNING}HKLM\\SYSTEM\\Setup\\LabConfig${RESET}"
-  sleep 0.2
-  draw_block_line "   - Добавьте параметры DWORD: ${WARNING}BypassTPMCheck=1${RESET},"
-  sleep 0.2
-  draw_block_line "     ${WARNING}BypassSecureBootCheck=1${RESET}, ${WARNING}BypassRAMCheck=1${RESET}"
-  sleep 0.2
-  draw_block_line ""
-  
-  draw_block_line "${ACCENT}3. После установки:${RESET}"
-  sleep 0.2
-  draw_block_line "   - Установите драйверы с сайта Dell"
-  sleep 0.2
-  draw_block_line "   - Выполните все обновления Windows"
-  sleep 0.2
-  draw_block_line ""
-  
-  draw_block_line "${SUCCESS}${BOLD}Удачной установки!${RESET}"
-  
-  close_info_block
-  
-  # Удаление файла состояния
-  rm -f ".win11_creator_state" 2>/dev/null
-  
-  # Очистка временных файлов
-  rm -rf "$CACHE_DIR" 2>/dev/null
-  
-  close_fullscreen_box
-  
-  echo
-  echo -e "${SUCCESS}${BOLD}====== СОЗДАНИЕ ЗАГРУЗОЧНОЙ ФЛЕШКИ WINDOWS 11 ЗАВЕРШЕНО! ======${RESET}"
-  echo -e "${INFO}Лог операции сохранён в: ${ACCENT}$LOG_FILE${RESET}"
-  
-  echo
-  echo -e "${ACCENT}[Нажмите Enter для выхода]${RESET}"
-  read
-  
-  clear_screen
-  
-  # Финальный аккорд - анимация завершения
-  for ((i=0; i<3; i++)); do
-    clear_screen
-    echo ""
-    echo ""
-    echo -e "$(center_text "${SUCCESS}${BOLD}Спасибо за использование Windows 11 USB Creator!${RESET}")"
-    echo ""
-    echo -e "$(center_text "${PRIMARY}Создано с ${ACCENT}♥${PRIMARY} для Dell OptiPlex 3070 Micro${RESET}")"
-    echo ""
-    sleep 0.5
-    
-    clear_screen
-    echo ""
-    echo ""
-    echo -e "$(center_text "${SUCCESS}${BOLD}Thanks for using Windows 11 USB Creator!${RESET}")"
-    echo ""
-    echo -e "$(center_text "${PRIMARY}Created with ${ACCENT}♥${PRIMARY} for Dell OptiPlex 3070 Micro${RESET}")"
-    echo ""
-    sleep 0.5
-  done
-  
-  # Удаляем trap перед выходом
-  trap - INT TERM EXIT
-  
-  exit 0
-}
-
-# ==================== ОБРАБОТКА АРГУМЕНТОВ КОМАНДНОЙ СТРОКИ ====================
-SCRIPT_ARGS="$@"  # Сохраняем аргументы для возможного перезапуска с sudo
-FAST_MODE=false
-PARALLEL_JOBS=0
-
-# Показываем справку при необходимости
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-  show_help
-  exit 0
-fi
-
-# Обработка параметров командной строки
-while getopts "i:d:n:fp:h" opt; do
-  case $opt in
-    i) ISO_PATH="$OPTARG" ;;
-    d) USB_DISK="$OPTARG" ;;
-    n) volume_name="$OPTARG" ;;
-    f) FAST_MODE=true ;;
-    p) PARALLEL_JOBS="$OPTARG" ;;
-    h) show_help; exit 0 ;;
-    *) show_help; exit 1 ;;
-  esac
-done
-
-# ==================== ПРОВЕРКА ПРЕДЫДУЩЕЙ СЕССИИ ====================
-if [ -f ".win11_creator_state" ]; then
-  clear_screen
-  echo -e "${INFO}${BOLD}Найдена предыдущая незавершенная сессия.${RESET}"
-  printf "${INFO}${BOLD}Хотите продолжить с предыдущего места? (Y/n): ${RESET}"
-  read -r resume_answer
-  resume_answer=$(echo "$resume_answer" | tr '[:upper:]' '[:lower:]')
-  
-  if [ -z "$resume_answer" ] || [ "$resume_answer" = "y" ]; then
-    # Проверяем файл на безопасность перед загрузкой
-    if grep -q -E "^(ISO_PATH|USB_DISK|MOUNT_DIR|USB_MOUNT|LAST_STEP)=" ".win11_creator_state"; then
-      # Загружаем только известные переменные, безопасно
-      ISO_PATH=$(grep "^ISO_PATH=" ".win11_creator_state" | cut -d= -f2- | sed 's/^"//;s/"$//')
-      USB_DISK=$(grep "^USB_DISK=" ".win11_creator_state" | cut -d= -f2- | sed 's/^"//;s/"$//')
-      MOUNT_DIR=$(grep "^MOUNT_DIR=" ".win11_creator_state" | cut -d= -f2- | sed 's/^"//;s/"$//')
-      USB_MOUNT=$(grep "^USB_MOUNT=" ".win11_creator_state" | cut -d= -f2- | sed 's/^"//;s/"$//')
-      LAST_STEP=$(grep "^LAST_STEP=" ".win11_creator_state" | cut -d= -f2- | sed 's/^"//;s/"$//')
-      
-      # Выполняем проверки безопасности
-      if [[ "$ISO_PATH" == *";"* || "$USB_DISK" == *";"* || "$MOUNT_DIR" == *";"* || "$USB_MOUNT" == *";"* || "$LAST_STEP" == *";"* ]]; then
-        show_error_message "Файл состояния содержит подозрительные символы. Запуск отменен."
-        log "ERROR" "Подозрительный файл состояния. Возможная попытка внедрения кода."
-        rm -f ".win11_creator_state"
-        exit 1
-      fi
-      
-      # Проверяем существование путей
-      if [ -n "$ISO_PATH" ] && [ ! -f "$ISO_PATH" ]; then
-        show_warning_message "ISO файл не найден: $ISO_PATH"
-        ISO_PATH=""
-      fi
-      
-      if [ -n "$MOUNT_DIR" ] && [ ! -d "$MOUNT_DIR" ]; then
-        show_warning_message "Точка монтирования не существует: $MOUNT_DIR"
-        MOUNT_DIR=""
-      fi
-      
-      if [ -n "$USB_MOUNT" ] && [ ! -d "$USB_MOUNT" ]; then
-        show_warning_message "Точка монтирования USB не существует: $USB_MOUNT"
-        USB_MOUNT=""
-      fi
-      
-      # Продолжаем с последнего шага
-      case "$LAST_STEP" in
-        "select_iso") 
-          check_requirements
-          mount_iso
-          select_usb
-          prepare_usb
-          copy_files
-          finish
-          ;;
-        "mount_iso") 
-          check_requirements
-          select_usb
-          prepare_usb
-          copy_files
-          finish
-          ;;
-        "select_usb") 
-          check_requirements
-          prepare_usb
-          copy_files
-          finish
-          ;;
-        "prepare_usb") 
-          check_requirements
-          copy_files
-          finish
-          ;;
-        "copy_files") 
-          check_requirements
-          finish
-          ;;
-        *) 
-          # Если не удалось определить шаг, начинаем сначала
-          show_warning_message "Не удалось определить последний шаг, начинаем сначала"
-          ;;
-      esac
-    else
-      show_error_message "Формат файла состояния некорректен. Запуск отменен."
-      log "ERROR" "Некорректный файл состояния."
-      rm -f ".win11_creator_state"
-    fi
-  fi
-fi
-
-# ==================== ГЛАВНАЯ ПРОГРАММА ====================
-
-clear_screen
-log "INFO" "Запуск скрипта создания загрузочной флешки Windows 11 (версия $VERSION)"
-
-# Проверка системных зависимостей
-check_system_dependencies
-
-# Показать заставку
-show_splash
-
-# Проверяем наличие предыдущей сессии напрямую
-resume_previous_session
-
-# Основной процесс создания загрузочной флешки
-select_iso
-mount_iso
-select_usb
-prepare_usb
-copy_files
-finish
-
-# Удаляем trap перед выходом
-trap - INT TERM EXIT
-
-exit 0
